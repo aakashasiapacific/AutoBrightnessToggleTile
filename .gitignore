@@ -1,0 +1,17 @@
+# Build output
+build/
+
+# Downloaded android.jar
+.sdk/
+
+# Signing keys must never be committed
+keystore/
+*.jks
+*.keystore
+*.p12
+
+# Editor / OS clutter
+.idea/
+.vscode/
+*.iml
+.DS_Store
