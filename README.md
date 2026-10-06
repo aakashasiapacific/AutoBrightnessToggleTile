@@ -95,13 +95,14 @@ src/com/kasana/autobrightness/
   TilePrefsActivity.java           long-press → Display settings
   Brightness.java                  reads/writes the brightness mode
 res/                               icons, strings, themes (light + dark)
+NOTICE                             third-party license notes
 release/                           signed release APKs and their notes
 build.sh                           Gradle-free build script
 ```
 
 ## Credits
 
-The half-sun tile and app icon is an original design, drawn to match the size and stroke weight of One UI's own quick panel icons. The two small row icons on the setup screen (key and app grid) come from Google's [Material Icons](https://github.com/google/material-design-icons) under the Apache License 2.0. That license ships inside the APK at `assets/LICENSE-material-symbols.txt`.
+The half-sun tile and app icon is an original design, drawn to match the size and stroke weight of One UI's own quick panel icons. The two small row icons on the setup screen (key and app grid) come from Google's [Material Icons](https://github.com/google/material-design-icons) under the Apache License 2.0. That license ships inside the APK at `assets/LICENSE-material-symbols.txt`; see [NOTICE](NOTICE).
 
 Not affiliated with Samsung or Google.
 
