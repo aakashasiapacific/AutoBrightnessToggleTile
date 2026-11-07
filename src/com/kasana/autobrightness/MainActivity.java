@@ -37,10 +37,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.Locale;
 import java.util.function.Consumer;
 
-/** iOS-style setup screen: permission, add-tile shortcut and a live switch. */
+/** One UI-style setup screen: big collapsing title, a live switch, permission and add-tile rows. */
 public class MainActivity extends Activity {
 
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
@@ -48,7 +47,7 @@ public class MainActivity extends Activity {
 
     private boolean dark;
     private int cBg, cCell, cLabel, cSecondary, cTertiary, cSeparator, cHighlight;
-    private int cBlue, cGreen, cOrange, cGray, cSwitchOff;
+    private int cBlue, cBlueTint, cOrange, cGray, cSwitchOff;
 
     private FrameLayout nav;
     private View navBg;
@@ -60,12 +59,15 @@ public class MainActivity extends Activity {
     private TextView heroTitle;
     private Row permRow;
     private Row tileRow;
-    private IosSwitch autoSwitch;
+    private OneUiSwitch autoSwitch;
+    private TextView autoStatus;
+    private GradientDrawable autoBubble;
     private int navBottom;
     private ContentObserver observer;
 
     private static final class Row {
         LinearLayout view;
+        TextView sub;
         TextView value;
     }
 
@@ -109,15 +111,28 @@ public class MainActivity extends Activity {
 
     private void refresh(boolean animate) {
         boolean canWrite = Brightness.canWrite(this);
-        setValue(permRow, canWrite ? R.string.allowed : R.string.allow, !canWrite);
+        setRow(permRow, canWrite ? R.string.perm_sub_ok : R.string.perm_sub_need,
+                canWrite ? R.string.allowed : R.string.allow, !canWrite);
         boolean added = Brightness.isTileAdded(this);
-        setValue(tileRow, added ? R.string.added : R.string.add, !added);
-        autoSwitch.setChecked(Brightness.isAuto(this), animate);
+        setRow(tileRow, added ? R.string.tile_sub_ok : R.string.tile_sub_need,
+                added ? R.string.added : R.string.add, !added);
+        boolean auto = Brightness.isAuto(this);
+        autoSwitch.setChecked(auto, animate);
+        autoStatus.setText(auto ? R.string.tile_on : R.string.tile_off);
+        autoBubble.setColor(auto ? cOrange : cGray);
     }
 
-    private void setValue(Row row, int text, boolean isAction) {
-        row.value.setText(text);
+    /** Subtitle under the row title, plus a tonal pill when the row still needs an action. */
+    private void setRow(Row row, int sub, int label, boolean isAction) {
+        row.sub.setText(sub);
+        row.value.setText(label);
         row.value.setTextColor(isAction ? cBlue : cSecondary);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(18));
+        bg.setColor(isAction ? cBlueTint : Color.TRANSPARENT);
+        row.value.setBackground(bg);
+        int h = isAction ? dp(14) : 0;
+        row.value.setPadding(h, 0, h, 0);
     }
 
     private void onAutoToggled(boolean on) {
@@ -201,30 +216,30 @@ public class MainActivity extends Activity {
     private void loadPalette() {
         if (dark) {
             cBg = 0xFF000000;
-            cCell = 0xFF1C1C1E;
+            cCell = 0xFF1F1F1F;
             cLabel = 0xFFFFFFFF;
-            cSecondary = 0x99EBEBF5;
-            cTertiary = 0x4DEBEBF5;
-            cSeparator = 0xA6545458;
-            cHighlight = 0xFF3A3A3C;
-            cBlue = 0xFF0A84FF;
-            cGreen = 0xFF30D158;
+            cSecondary = 0xFFA8A8A8;
+            cTertiary = 0x66FFFFFF;
+            cSeparator = 0x24FFFFFF;
+            cHighlight = 0xFF333333;
+            cBlue = 0xFF4C9BFF;
+            cBlueTint = 0x294C9BFF;
             cOrange = 0xFFFF9F0A;
-            cGray = 0xFF8E8E93;
-            cSwitchOff = 0xFF39393D;
+            cGray = 0xFF6F6F73;
+            cSwitchOff = 0xFF9A9A9A;
         } else {
-            cBg = 0xFFF2F2F7;
+            cBg = 0xFFF5F5F5;
             cCell = 0xFFFFFFFF;
             cLabel = 0xFF000000;
-            cSecondary = 0x993C3C43;
-            cTertiary = 0x4D3C3C43;
-            cSeparator = 0x4A3C3C43;
-            cHighlight = 0xFFD1D1D6;
-            cBlue = 0xFF007AFF;
-            cGreen = 0xFF34C759;
+            cSecondary = 0xFF6E6E6E;
+            cTertiary = 0x4D000000;
+            cSeparator = 0x1F000000;
+            cHighlight = 0xFFEAEAEA;
+            cBlue = 0xFF3E91FF;
+            cBlueTint = 0x1F3E91FF;
             cOrange = 0xFFFF9500;
-            cGray = 0xFF8E8E93;
-            cSwitchOff = 0xFFE9E9EA;
+            cGray = 0xFF9A9AA0;
+            cSwitchOff = 0xFF8E8E8E;
         }
     }
 
@@ -240,35 +255,65 @@ public class MainActivity extends Activity {
         scroll.addView(content, new FrameLayout.LayoutParams(MATCH, WRAP));
         root.addView(scroll, new FrameLayout.LayoutParams(MATCH, MATCH));
 
-        // Hero card
-        hero = card();
-        hero.setGravity(Gravity.CENTER_HORIZONTAL);
-        hero.setPadding(dp(24), dp(28), dp(24), dp(26));
-        ImageView icon = new ImageView(this);
-        GradientDrawable iconBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0xFFFFC94D, 0xFFFF8A00});
-        iconBg.setCornerRadius(dp(17));
-        icon.setBackground(iconBg);
-        icon.setImageResource(R.drawable.ic_tile);
-        icon.setImageTintList(ColorStateList.valueOf(Color.WHITE));
-        icon.setPadding(dp(12), dp(12), dp(12), dp(12));
-        hero.addView(icon, new LinearLayout.LayoutParams(dp(76), dp(76)));
-
-        heroTitle = text(getString(R.string.app_name), 24, cLabel, 700);
-        heroTitle.setGravity(Gravity.CENTER);
-        hero.addView(heroTitle, margins(MATCH, WRAP, 0, dp(14), 0, 0));
-
-        TextView desc = text(getString(R.string.hero_desc), 15, cSecondary, 400);
-        desc.setGravity(Gravity.CENTER);
-        desc.setLineSpacing(dp(2), 1f);
-        hero.addView(desc, margins(MATCH, WRAP, 0, dp(6), 0, 0));
+        // Large left-aligned title that collapses into the top bar (One UI header)
+        hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setGravity(Gravity.BOTTOM);
+        hero.setMinimumHeight(dp(168));
+        hero.setPadding(dp(12), 0, dp(12), dp(22));
+        heroTitle = text(getString(R.string.app_name), 34, cLabel, 500);
+        heroTitle.setLineSpacing(0, 1.05f);
+        hero.addView(heroTitle, new LinearLayout.LayoutParams(MATCH, WRAP));
         content.addView(hero, new LinearLayout.LayoutParams(MATCH, WRAP));
+
+        // Main card: live adaptive brightness switch
+        LinearLayout control = card();
+        LinearLayout autoRow = new LinearLayout(this);
+        autoRow.setOrientation(LinearLayout.HORIZONTAL);
+        autoRow.setGravity(Gravity.CENTER_VERTICAL);
+        autoRow.setMinimumHeight(dp(84));
+        autoRow.setPadding(dp(20), dp(12), dp(14), dp(12));
+
+        ImageView sun = new ImageView(this);
+        autoBubble = new GradientDrawable();
+        autoBubble.setShape(GradientDrawable.OVAL);
+        autoBubble.setColor(cGray);
+        sun.setBackground(autoBubble);
+        sun.setImageResource(R.drawable.ic_tile);
+        sun.setImageTintList(ColorStateList.valueOf(Color.WHITE));
+        sun.setPadding(dp(11), dp(11), dp(11), dp(11));
+        autoRow.addView(sun, new LinearLayout.LayoutParams(dp(52), dp(52)));
+
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        TextView autoTitle = text(getString(R.string.row_auto), 18, cLabel, 500);
+        autoTitle.setSingleLine(true);
+        autoTitle.setEllipsize(TextUtils.TruncateAt.END);
+        labels.addView(autoTitle, new LinearLayout.LayoutParams(MATCH, WRAP));
+        autoStatus = text("", 14, cSecondary, 400);
+        labels.addView(autoStatus, margins(MATCH, WRAP, 0, dp(3), 0, 0));
+        LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(0, WRAP, 1f);
+        ll.leftMargin = dp(16);
+        ll.rightMargin = dp(8);
+        autoRow.addView(labels, ll);
+
+        autoSwitch = new OneUiSwitch(this, cBlue, cSwitchOff);
+        autoSwitch.setContentDescription(getString(R.string.row_auto));
+        autoSwitch.setListener(new OneUiSwitch.Listener() {
+            @Override
+            public void onToggle(OneUiSwitch view, boolean checked) {
+                onAutoToggled(checked);
+            }
+        });
+        autoRow.addView(autoSwitch, new LinearLayout.LayoutParams(WRAP, WRAP));
+        control.addView(autoRow, new LinearLayout.LayoutParams(MATCH, WRAP));
+        content.addView(control, new LinearLayout.LayoutParams(MATCH, WRAP));
+        content.addView(footer(R.string.hero_desc));
 
         // Setup section
         content.addView(sectionHeader(R.string.section_setup));
         LinearLayout setup = card();
         permRow = row(R.drawable.ic_key, cGray, R.string.row_permission);
-        addValueAndChevron(permRow);
         tappable(permRow.view, new Runnable() {
             @Override
             public void run() {
@@ -276,9 +321,8 @@ public class MainActivity extends Activity {
             }
         });
         setup.addView(permRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
-        setup.addView(separator(dp(16 + 30 + 14)));
+        setup.addView(separator(dp(20 + 44 + 14)));
         tileRow = row(R.drawable.ic_apps, cBlue, R.string.row_tile);
-        addValueAndChevron(tileRow);
         tappable(tileRow.view, new Runnable() {
             @Override
             public void run() {
@@ -288,30 +332,13 @@ public class MainActivity extends Activity {
         setup.addView(tileRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
         content.addView(setup, new LinearLayout.LayoutParams(MATCH, WRAP));
         content.addView(footer(R.string.footer_setup));
-
-        // Brightness section
-        content.addView(sectionHeader(R.string.section_control));
-        LinearLayout control = card();
-        Row autoRow = row(R.drawable.ic_tile, cOrange, R.string.row_auto);
-        autoRow.view.setPadding(dp(16), 0, dp(12), 0);
-        autoSwitch = new IosSwitch(this, cGreen, cSwitchOff);
-        autoSwitch.setContentDescription(getString(R.string.row_auto));
-        autoSwitch.setListener(new IosSwitch.Listener() {
-            @Override
-            public void onToggle(IosSwitch view, boolean checked) {
-                onAutoToggled(checked);
-            }
-        });
-        autoRow.view.addView(autoSwitch, new LinearLayout.LayoutParams(WRAP, WRAP));
-        control.addView(autoRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
-        content.addView(control, new LinearLayout.LayoutParams(MATCH, WRAP));
         content.addView(footer(R.string.footer_control));
 
         TextView version = text(getString(R.string.version_line), 12, cTertiary, 400);
         version.setGravity(Gravity.CENTER);
         content.addView(version, margins(MATCH, WRAP, 0, dp(32), 0, 0));
 
-        // Translucent nav bar that fades in while scrolling (iOS large-title behaviour)
+        // Top bar: fades in while scrolling and shows the collapsed title
         nav = new FrameLayout(this);
         navBg = new View(this);
         navBg.setBackgroundColor((cBg & 0x00FFFFFF) | 0xF0000000);
@@ -424,52 +451,52 @@ public class MainActivity extends Activity {
         c.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable g = new GradientDrawable();
         g.setColor(cCell);
-        g.setCornerRadius(dp(24));
+        g.setCornerRadius(dp(26));
         c.setBackground(g);
         c.setClipToOutline(true);
         return c;
     }
 
+    /** Round icon bubble, title with a subtitle underneath, and a trailing action pill. */
     private Row row(int glyph, int tint, int title) {
         Row r = new Row();
         LinearLayout v = new LinearLayout(this);
         v.setOrientation(LinearLayout.HORIZONTAL);
         v.setGravity(Gravity.CENTER_VERTICAL);
-        v.setMinimumHeight(dp(52));
-        v.setPadding(dp(16), 0, dp(16), 0);
+        v.setMinimumHeight(dp(72));
+        v.setPadding(dp(20), dp(10), dp(16), dp(10));
 
         ImageView icon = new ImageView(this);
         GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.OVAL);
         bg.setColor(tint);
-        bg.setCornerRadius(dp(7));
         icon.setBackground(bg);
         icon.setImageResource(glyph);
         icon.setImageTintList(ColorStateList.valueOf(Color.WHITE));
-        icon.setPadding(dp(5), dp(5), dp(5), dp(5));
-        v.addView(icon, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        icon.setPadding(dp(10), dp(10), dp(10), dp(10));
+        v.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
         TextView t = text(getString(title), 17, cLabel, 400);
         t.setSingleLine(true);
         t.setEllipsize(TextUtils.TruncateAt.END);
+        labels.addView(t, new LinearLayout.LayoutParams(MATCH, WRAP));
+        r.sub = text("", 14, cSecondary, 400);
+        labels.addView(r.sub, margins(MATCH, WRAP, 0, dp(2), 0, 0));
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, WRAP, 1f);
         tl.leftMargin = dp(14);
         tl.rightMargin = dp(8);
-        v.addView(t, tl);
+        v.addView(labels, tl);
+
+        r.value = text("", 15, cSecondary, 500);
+        r.value.setSingleLine(true);
+        r.value.setGravity(Gravity.CENTER);
+        r.value.setMinimumHeight(dp(36));
+        v.addView(r.value, new LinearLayout.LayoutParams(WRAP, dp(36)));
 
         r.view = v;
         return r;
-    }
-
-    private void addValueAndChevron(Row r) {
-        r.value = text("", 17, cSecondary, 400);
-        r.value.setSingleLine(true);
-        r.view.addView(r.value, new LinearLayout.LayoutParams(WRAP, WRAP));
-        ImageView chevron = new ImageView(this);
-        chevron.setImageResource(R.drawable.ic_chevron);
-        chevron.setImageTintList(ColorStateList.valueOf(cTertiary));
-        LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(dp(8), dp(14));
-        cl.leftMargin = dp(10);
-        r.view.addView(chevron, cl);
     }
 
     private void tappable(View v, final Runnable action) {
@@ -497,16 +524,15 @@ public class MainActivity extends Activity {
     }
 
     private TextView sectionHeader(int res) {
-        TextView t = text(getString(res).toUpperCase(Locale.ROOT), 13, cSecondary, 400);
-        t.setLetterSpacing(0.03f);
-        t.setLayoutParams(margins(MATCH, WRAP, dp(16), dp(28), dp(16), dp(8)));
+        TextView t = text(getString(res), 14, cBlue, 500);
+        t.setLayoutParams(margins(MATCH, WRAP, dp(20), dp(28), dp(16), dp(8)));
         return t;
     }
 
     private TextView footer(int res) {
         TextView t = text(getString(res), 13, cSecondary, 400);
         t.setLineSpacing(dp(2), 1f);
-        t.setLayoutParams(margins(MATCH, WRAP, dp(16), dp(8), dp(16), 0));
+        t.setLayoutParams(margins(MATCH, WRAP, dp(20), dp(10), dp(16), 0));
         return t;
     }
 

@@ -15,16 +15,20 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.PathInterpolator;
 import android.widget.Switch;
 
-/** iOS-style switch: 51x31 track, white thumb that stretches while pressed. */
-final class IosSwitch extends View {
+/**
+ * One UI-style switch: 52x28 pill. Off is an outlined track with a small grey thumb;
+ * on is a filled track with a larger white thumb. The thumb grows slightly while pressed.
+ */
+final class OneUiSwitch extends View {
 
     interface Listener {
-        void onToggle(IosSwitch view, boolean checked);
+        void onToggle(OneUiSwitch view, boolean checked);
     }
 
     private static final ArgbEvaluator ARGB = new ArgbEvaluator();
 
-    private final Paint trackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint thumbPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
     private final float density;
@@ -33,18 +37,18 @@ final class IosSwitch extends View {
 
     private boolean checked;
     private float position;   // 0 = off, 1 = on
-    private float press;      // 0..1, thumb stretch while finger is down
+    private float press;      // 0..1, thumb growth while the finger is down
     private ValueAnimator positionAnim;
     private ValueAnimator pressAnim;
     private Listener listener;
 
-    IosSwitch(Context context, int onColor, int offColor) {
+    OneUiSwitch(Context context, int onColor, int offColor) {
         super(context);
         this.density = context.getResources().getDisplayMetrics().density;
         this.onColor = onColor;
         this.offColor = offColor;
-        thumbPaint.setColor(Color.WHITE);
-        thumbPaint.setShadowLayer(3f * density, 0f, 1.5f * density, 0x29000000);
+        strokePaint.setStyle(Paint.Style.STROKE);
+        strokePaint.setStrokeWidth(2f * density);
         setClickable(true);
         setFocusable(true);
         setOnClickListener(new OnClickListener() {
@@ -69,8 +73,8 @@ final class IosSwitch extends View {
             invalidate();
         } else {
             positionAnim = ValueAnimator.ofFloat(position, target);
-            positionAnim.setDuration(300);
-            positionAnim.setInterpolator(new PathInterpolator(0.32f, 0.72f, 0f, 1f));
+            positionAnim.setDuration(260);
+            positionAnim.setInterpolator(new PathInterpolator(0.25f, 0.8f, 0.25f, 1f));
             positionAnim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
                 @Override
                 public void onAnimationUpdate(ValueAnimator a) {
@@ -112,7 +116,7 @@ final class IosSwitch extends View {
     private void animatePress(float target) {
         if (pressAnim != null) pressAnim.cancel();
         pressAnim = ValueAnimator.ofFloat(press, target);
-        pressAnim.setDuration(160);
+        pressAnim.setDuration(140);
         pressAnim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator a) {
@@ -125,28 +129,35 @@ final class IosSwitch extends View {
 
     @Override
     protected void onMeasure(int widthSpec, int heightSpec) {
-        setMeasuredDimension(resolveSize(Math.round(59 * density), widthSpec),
-                resolveSize(Math.round(44 * density), heightSpec));
+        setMeasuredDimension(resolveSize(Math.round(60 * density), widthSpec),
+                resolveSize(Math.round(48 * density), heightSpec));
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         float p = Math.max(0f, Math.min(1f, position));
-        float trackW = 51 * density;
-        float trackH = 31 * density;
+        float trackW = 52 * density;
+        float trackH = 28 * density;
+        float stroke = strokePaint.getStrokeWidth();
         float left = (getWidth() - trackW) / 2f;
         float top = (getHeight() - trackH) / 2f;
 
-        trackPaint.setColor((Integer) ARGB.evaluate(p, offColor, onColor));
+        // Track: transparent fill + grey outline when off, solid accent when on
+        fillPaint.setColor((Integer) ARGB.evaluate(p, offColor & 0x00FFFFFF, onColor));
+        strokePaint.setColor((Integer) ARGB.evaluate(p, offColor, onColor));
         rect.set(left, top, left + trackW, top + trackH);
-        canvas.drawRoundRect(rect, trackH / 2f, trackH / 2f, trackPaint);
+        canvas.drawRoundRect(rect, trackH / 2f, trackH / 2f, fillPaint);
+        rect.inset(stroke / 2f, stroke / 2f);
+        canvas.drawRoundRect(rect, trackH / 2f, trackH / 2f, strokePaint);
 
-        float margin = 2 * density;
-        float d = trackH - 2 * margin;
-        float thumbW = d + press * 7 * density;
-        float x = left + margin + p * (trackW - 2 * margin - thumbW);
-        rect.set(x, top + margin, x + thumbW, top + margin + d);
-        canvas.drawRoundRect(rect, d / 2f, d / 2f, thumbPaint);
+        // Thumb: small grey dot when off, bigger white dot when on
+        float d = (14 + 6 * p + 2 * press) * density;
+        float offCx = 13 * density;
+        float onCx = trackW - 12 * density;
+        float cx = left + offCx + p * (onCx - offCx);
+        float cy = top + trackH / 2f;
+        thumbPaint.setColor((Integer) ARGB.evaluate(p, offColor, Color.WHITE));
+        canvas.drawCircle(cx, cy, d / 2f, thumbPaint);
     }
 
     @Override
