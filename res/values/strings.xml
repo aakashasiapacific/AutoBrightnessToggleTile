@@ -6,24 +6,14 @@
     <string name="tile_off">Off</string>
     <string name="tile_setup">Tap to set up</string>
 
-    <string name="hero_desc">Turn adaptive brightness on or off with one tap from your quick panel.</string>
-
     <string name="section_setup">Setup</string>
     <string name="row_permission">Modify system settings</string>
     <string name="row_tile">Quick panel tile</string>
-    <string name="allowed">Allowed</string>
     <string name="allow">Allow</string>
-    <string name="added">Added</string>
     <string name="add">Add</string>
-    <string name="perm_sub_ok">Adaptive brightness can be changed</string>
-    <string name="perm_sub_need">Needed to switch adaptive brightness</string>
-    <string name="tile_sub_ok">In your quick panel</string>
-    <string name="tile_sub_need">Add the button to your quick panel</string>
-    <string name="footer_setup">Only Android\'s standard adaptive brightness setting is changed. No Shizuku, ADB or root.</string>
 
-    <string name="section_control">Brightness</string>
     <string name="row_auto">Adaptive brightness</string>
-    <string name="footer_control">Long-press the tile in your quick panel to open Display settings.</string>
+    <string name="footer_control">Long-press the tile in your quick panel for Display settings.</string>
 
     <string name="version_line">Version 1.3</string>
 

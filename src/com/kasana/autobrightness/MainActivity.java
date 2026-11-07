@@ -44,6 +44,10 @@ public class MainActivity extends Activity {
 
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+    /** Shared grid (dp): left edge inside cards, icon size, icon-to-text gap. */
+    private static final int INSET = 20;
+    private static final int ICON = 40;
+    private static final int GAP = 16;
 
     private boolean dark;
     private int cBg, cCell, cLabel, cSecondary, cTertiary, cSeparator, cHighlight;
@@ -62,13 +66,16 @@ public class MainActivity extends Activity {
     private OneUiSwitch autoSwitch;
     private TextView autoStatus;
     private GradientDrawable autoBubble;
+    private View setupHeader;
+    private LinearLayout setupCard;
+    private View setupDivider;
     private int navBottom;
     private ContentObserver observer;
 
     private static final class Row {
         LinearLayout view;
+        GradientDrawable bubble;
         TextView sub;
-        TextView value;
     }
 
     // ---------------------------------------------------------------- lifecycle
@@ -110,29 +117,20 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------- state
 
     private void refresh(boolean animate) {
-        boolean canWrite = Brightness.canWrite(this);
-        setRow(permRow, canWrite ? R.string.perm_sub_ok : R.string.perm_sub_need,
-                canWrite ? R.string.allowed : R.string.allow, !canWrite);
-        boolean added = Brightness.isTileAdded(this);
-        setRow(tileRow, added ? R.string.tile_sub_ok : R.string.tile_sub_need,
-                added ? R.string.added : R.string.add, !added);
+        // Setup rows only show while a step is still needed; the section goes away once both are done
+        boolean needPerm = !Brightness.canWrite(this);
+        boolean needTile = !Brightness.isTileAdded(this);
+        permRow.view.setVisibility(needPerm ? View.VISIBLE : View.GONE);
+        tileRow.view.setVisibility(needTile ? View.VISIBLE : View.GONE);
+        setupDivider.setVisibility(needPerm && needTile ? View.VISIBLE : View.GONE);
+        int setup = needPerm || needTile ? View.VISIBLE : View.GONE;
+        setupHeader.setVisibility(setup);
+        setupCard.setVisibility(setup);
+
         boolean auto = Brightness.isAuto(this);
         autoSwitch.setChecked(auto, animate);
         autoStatus.setText(auto ? R.string.tile_on : R.string.tile_off);
         autoBubble.setColor(auto ? cOrange : cGray);
-    }
-
-    /** Subtitle under the row title, plus a tonal pill when the row still needs an action. */
-    private void setRow(Row row, int sub, int label, boolean isAction) {
-        row.sub.setText(sub);
-        row.value.setText(label);
-        row.value.setTextColor(isAction ? cBlue : cSecondary);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(18));
-        bg.setColor(isAction ? cBlueTint : Color.TRANSPARENT);
-        row.value.setBackground(bg);
-        int h = isAction ? dp(14) : 0;
-        row.value.setPadding(h, 0, h, 0);
     }
 
     private void onAutoToggled(boolean on) {
@@ -255,48 +253,22 @@ public class MainActivity extends Activity {
         scroll.addView(content, new FrameLayout.LayoutParams(MATCH, WRAP));
         root.addView(scroll, new FrameLayout.LayoutParams(MATCH, MATCH));
 
-        // Large left-aligned title that collapses into the top bar (One UI header)
+        // Everything shares one left edge: INSET from the card edge (title, icons, headers, footer)
         hero = new LinearLayout(this);
         hero.setOrientation(LinearLayout.VERTICAL);
         hero.setGravity(Gravity.BOTTOM);
-        hero.setMinimumHeight(dp(168));
-        hero.setPadding(dp(12), 0, dp(12), dp(22));
-        heroTitle = text(getString(R.string.app_name), 34, cLabel, 500);
-        heroTitle.setLineSpacing(0, 1.05f);
+        hero.setMinimumHeight(dp(150));
+        hero.setPadding(dp(INSET), 0, dp(INSET), dp(24));
+        heroTitle = text(getString(R.string.tile_label), 32, cLabel, 500);
         hero.addView(heroTitle, new LinearLayout.LayoutParams(MATCH, WRAP));
         content.addView(hero, new LinearLayout.LayoutParams(MATCH, WRAP));
 
-        // Main card: live adaptive brightness switch
+        // Main card: the live switch
         LinearLayout control = card();
-        LinearLayout autoRow = new LinearLayout(this);
-        autoRow.setOrientation(LinearLayout.HORIZONTAL);
-        autoRow.setGravity(Gravity.CENTER_VERTICAL);
-        autoRow.setMinimumHeight(dp(84));
-        autoRow.setPadding(dp(20), dp(12), dp(14), dp(12));
-
-        ImageView sun = new ImageView(this);
-        autoBubble = new GradientDrawable();
-        autoBubble.setShape(GradientDrawable.OVAL);
-        autoBubble.setColor(cGray);
-        sun.setBackground(autoBubble);
-        sun.setImageResource(R.drawable.ic_tile);
-        sun.setImageTintList(ColorStateList.valueOf(Color.WHITE));
-        sun.setPadding(dp(11), dp(11), dp(11), dp(11));
-        autoRow.addView(sun, new LinearLayout.LayoutParams(dp(52), dp(52)));
-
-        LinearLayout labels = new LinearLayout(this);
-        labels.setOrientation(LinearLayout.VERTICAL);
-        TextView autoTitle = text(getString(R.string.row_auto), 18, cLabel, 500);
-        autoTitle.setSingleLine(true);
-        autoTitle.setEllipsize(TextUtils.TruncateAt.END);
-        labels.addView(autoTitle, new LinearLayout.LayoutParams(MATCH, WRAP));
-        autoStatus = text("", 14, cSecondary, 400);
-        labels.addView(autoStatus, margins(MATCH, WRAP, 0, dp(3), 0, 0));
-        LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(0, WRAP, 1f);
-        ll.leftMargin = dp(16);
-        ll.rightMargin = dp(8);
-        autoRow.addView(labels, ll);
-
+        Row autoRow = row(R.drawable.ic_tile, cGray, R.string.row_auto);
+        autoBubble = autoRow.bubble;
+        autoStatus = autoRow.sub;
+        autoRow.view.setPadding(dp(INSET), dp(12), dp(10), dp(12));
         autoSwitch = new OneUiSwitch(this, cBlue, cSwitchOff);
         autoSwitch.setContentDescription(getString(R.string.row_auto));
         autoSwitch.setListener(new OneUiSwitch.Listener() {
@@ -305,38 +277,41 @@ public class MainActivity extends Activity {
                 onAutoToggled(checked);
             }
         });
-        autoRow.addView(autoSwitch, new LinearLayout.LayoutParams(WRAP, WRAP));
-        control.addView(autoRow, new LinearLayout.LayoutParams(MATCH, WRAP));
+        autoRow.view.addView(autoSwitch, new LinearLayout.LayoutParams(WRAP, WRAP));
+        control.addView(autoRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
         content.addView(control, new LinearLayout.LayoutParams(MATCH, WRAP));
-        content.addView(footer(R.string.hero_desc));
 
-        // Setup section
-        content.addView(sectionHeader(R.string.section_setup));
-        LinearLayout setup = card();
+        // Setup card: only the steps that are still left
+        setupHeader = sectionHeader(R.string.section_setup);
+        content.addView(setupHeader);
+        setupCard = card();
         permRow = row(R.drawable.ic_key, cGray, R.string.row_permission);
+        addPill(permRow, R.string.allow);
         tappable(permRow.view, new Runnable() {
             @Override
             public void run() {
                 openPermission();
             }
         });
-        setup.addView(permRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
-        setup.addView(separator(dp(20 + 44 + 14)));
+        setupCard.addView(permRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
+        setupDivider = separator(dp(INSET + ICON + GAP));
+        setupCard.addView(setupDivider);
         tileRow = row(R.drawable.ic_apps, cBlue, R.string.row_tile);
+        addPill(tileRow, R.string.add);
         tappable(tileRow.view, new Runnable() {
             @Override
             public void run() {
                 requestAddTile();
             }
         });
-        setup.addView(tileRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
-        content.addView(setup, new LinearLayout.LayoutParams(MATCH, WRAP));
-        content.addView(footer(R.string.footer_setup));
+        setupCard.addView(tileRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
+        content.addView(setupCard, new LinearLayout.LayoutParams(MATCH, WRAP));
+
         content.addView(footer(R.string.footer_control));
 
         TextView version = text(getString(R.string.version_line), 12, cTertiary, 400);
         version.setGravity(Gravity.CENTER);
-        content.addView(version, margins(MATCH, WRAP, 0, dp(32), 0, 0));
+        content.addView(version, margins(MATCH, WRAP, 0, dp(40), 0, 0));
 
         // Top bar: fades in while scrolling and shows the collapsed title
         nav = new FrameLayout(this);
@@ -344,7 +319,7 @@ public class MainActivity extends Activity {
         navBg.setBackgroundColor((cBg & 0x00FFFFFF) | 0xF0000000);
         navBg.setAlpha(0f);
         nav.addView(navBg, new FrameLayout.LayoutParams(MATCH, MATCH));
-        navTitle = text(getString(R.string.app_name), 17, cLabel, 600);
+        navTitle = text(getString(R.string.tile_label), 17, cLabel, 600);
         navTitle.setGravity(Gravity.CENTER);
         navTitle.setSingleLine(true);
         navTitle.setAlpha(0f);
@@ -457,24 +432,24 @@ public class MainActivity extends Activity {
         return c;
     }
 
-    /** Round icon bubble, title with a subtitle underneath, and a trailing action pill. */
+    /** Round icon bubble, then a title with an optional status line underneath. */
     private Row row(int glyph, int tint, int title) {
         Row r = new Row();
         LinearLayout v = new LinearLayout(this);
         v.setOrientation(LinearLayout.HORIZONTAL);
         v.setGravity(Gravity.CENTER_VERTICAL);
-        v.setMinimumHeight(dp(72));
-        v.setPadding(dp(20), dp(10), dp(16), dp(10));
+        v.setMinimumHeight(dp(68));
+        v.setPadding(dp(INSET), dp(10), dp(INSET), dp(10));
 
         ImageView icon = new ImageView(this);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setShape(GradientDrawable.OVAL);
-        bg.setColor(tint);
-        icon.setBackground(bg);
+        r.bubble = new GradientDrawable();
+        r.bubble.setShape(GradientDrawable.OVAL);
+        r.bubble.setColor(tint);
+        icon.setBackground(r.bubble);
         icon.setImageResource(glyph);
         icon.setImageTintList(ColorStateList.valueOf(Color.WHITE));
-        icon.setPadding(dp(10), dp(10), dp(10), dp(10));
-        v.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        icon.setPadding(dp(9), dp(9), dp(9), dp(9));
+        v.addView(icon, new LinearLayout.LayoutParams(dp(ICON), dp(ICON)));
 
         LinearLayout labels = new LinearLayout(this);
         labels.setOrientation(LinearLayout.VERTICAL);
@@ -483,20 +458,28 @@ public class MainActivity extends Activity {
         t.setEllipsize(TextUtils.TruncateAt.END);
         labels.addView(t, new LinearLayout.LayoutParams(MATCH, WRAP));
         r.sub = text("", 14, cSecondary, 400);
-        labels.addView(r.sub, margins(MATCH, WRAP, 0, dp(2), 0, 0));
+        labels.addView(r.sub, margins(MATCH, WRAP, 0, dp(3), 0, 0));
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, WRAP, 1f);
-        tl.leftMargin = dp(14);
+        tl.leftMargin = dp(GAP);
         tl.rightMargin = dp(8);
         v.addView(labels, tl);
 
-        r.value = text("", 15, cSecondary, 500);
-        r.value.setSingleLine(true);
-        r.value.setGravity(Gravity.CENTER);
-        r.value.setMinimumHeight(dp(36));
-        v.addView(r.value, new LinearLayout.LayoutParams(WRAP, dp(36)));
-
         r.view = v;
         return r;
+    }
+
+    /** Tonal blue action pill at the end of a setup row; the row has no status line. */
+    private void addPill(Row r, int label) {
+        r.sub.setVisibility(View.GONE);
+        TextView pill = text(getString(label), 15, cBlue, 500);
+        pill.setSingleLine(true);
+        pill.setGravity(Gravity.CENTER);
+        pill.setPadding(dp(16), 0, dp(16), 0);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(18));
+        bg.setColor(cBlueTint);
+        pill.setBackground(bg);
+        r.view.addView(pill, new LinearLayout.LayoutParams(WRAP, dp(36)));
     }
 
     private void tappable(View v, final Runnable action) {
@@ -525,14 +508,14 @@ public class MainActivity extends Activity {
 
     private TextView sectionHeader(int res) {
         TextView t = text(getString(res), 14, cBlue, 500);
-        t.setLayoutParams(margins(MATCH, WRAP, dp(20), dp(28), dp(16), dp(8)));
+        t.setLayoutParams(margins(MATCH, WRAP, dp(INSET), dp(28), dp(INSET), dp(10)));
         return t;
     }
 
     private TextView footer(int res) {
         TextView t = text(getString(res), 13, cSecondary, 400);
         t.setLineSpacing(dp(2), 1f);
-        t.setLayoutParams(margins(MATCH, WRAP, dp(20), dp(10), dp(16), 0));
+        t.setLayoutParams(margins(MATCH, WRAP, dp(INSET), dp(16), dp(INSET), 0));
         return t;
     }
 
