@@ -18,7 +18,7 @@ One UI hides adaptive brightness behind the ⋮ menu next to the brightness slid
 - **One-tap toggle.** Tap the tile to turn adaptive brightness on or off. The subtitle reads **On** or **Off**.
 - **Always in sync.** The tile updates when you change the setting somewhere else, such as Samsung's own brightness menu.
 - **Long-press shortcut.** Long-press the tile to go straight to Display settings.
-- **Guided setup screen** (iOS-style, light and dark):
+- **Guided setup screen** (One UI style, light and dark):
   - grant the permission
   - add the tile to the quick panel in one tap (Android 13+)
   - flip adaptive brightness with a live switch
@@ -91,7 +91,7 @@ AndroidManifest.xml
 src/com/kasana/autobrightness/
   AutoBrightnessTileService.java   quick panel tile
   MainActivity.java                setup screen
-  IosSwitch.java                   iOS-style switch view
+  OneUiSwitch.java                  One UI-style switch view
   TilePrefsActivity.java           long-press → Display settings
   Brightness.java                  reads/writes the brightness mode
 res/                               icons, strings, themes (light + dark)

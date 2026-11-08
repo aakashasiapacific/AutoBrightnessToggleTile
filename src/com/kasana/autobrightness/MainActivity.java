@@ -37,18 +37,21 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.Locale;
 import java.util.function.Consumer;
 
-/** iOS-style setup screen: permission, add-tile shortcut and a live switch. */
+/** One UI-style setup screen: big collapsing title, a live switch, permission and add-tile rows. */
 public class MainActivity extends Activity {
 
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+    /** Shared grid (dp): left edge inside cards, icon size, icon-to-text gap. */
+    private static final int INSET = 20;
+    private static final int ICON = 40;
+    private static final int GAP = 16;
 
     private boolean dark;
     private int cBg, cCell, cLabel, cSecondary, cTertiary, cSeparator, cHighlight;
-    private int cBlue, cGreen, cOrange, cGray, cSwitchOff;
+    private int cBlue, cBlueTint, cOrange, cGray, cSwitchOff;
 
     private FrameLayout nav;
     private View navBg;
@@ -60,13 +63,19 @@ public class MainActivity extends Activity {
     private TextView heroTitle;
     private Row permRow;
     private Row tileRow;
-    private IosSwitch autoSwitch;
+    private OneUiSwitch autoSwitch;
+    private TextView autoStatus;
+    private GradientDrawable autoBubble;
+    private View setupHeader;
+    private LinearLayout setupCard;
+    private View setupDivider;
     private int navBottom;
     private ContentObserver observer;
 
     private static final class Row {
         LinearLayout view;
-        TextView value;
+        GradientDrawable bubble;
+        TextView sub;
     }
 
     // ---------------------------------------------------------------- lifecycle
@@ -108,16 +117,20 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------- state
 
     private void refresh(boolean animate) {
-        boolean canWrite = Brightness.canWrite(this);
-        setValue(permRow, canWrite ? R.string.allowed : R.string.allow, !canWrite);
-        boolean added = Brightness.isTileAdded(this);
-        setValue(tileRow, added ? R.string.added : R.string.add, !added);
-        autoSwitch.setChecked(Brightness.isAuto(this), animate);
-    }
+        // Setup rows only show while a step is still needed; the section goes away once both are done
+        boolean needPerm = !Brightness.canWrite(this);
+        boolean needTile = !Brightness.isTileAdded(this);
+        permRow.view.setVisibility(needPerm ? View.VISIBLE : View.GONE);
+        tileRow.view.setVisibility(needTile ? View.VISIBLE : View.GONE);
+        setupDivider.setVisibility(needPerm && needTile ? View.VISIBLE : View.GONE);
+        int setup = needPerm || needTile ? View.VISIBLE : View.GONE;
+        setupHeader.setVisibility(setup);
+        setupCard.setVisibility(setup);
 
-    private void setValue(Row row, int text, boolean isAction) {
-        row.value.setText(text);
-        row.value.setTextColor(isAction ? cBlue : cSecondary);
+        boolean auto = Brightness.isAuto(this);
+        autoSwitch.setChecked(auto, animate);
+        autoStatus.setText(auto ? R.string.tile_on : R.string.tile_off);
+        autoBubble.setColor(auto ? cOrange : cGray);
     }
 
     private void onAutoToggled(boolean on) {
@@ -201,30 +214,30 @@ public class MainActivity extends Activity {
     private void loadPalette() {
         if (dark) {
             cBg = 0xFF000000;
-            cCell = 0xFF1C1C1E;
+            cCell = 0xFF1F1F1F;
             cLabel = 0xFFFFFFFF;
-            cSecondary = 0x99EBEBF5;
-            cTertiary = 0x4DEBEBF5;
-            cSeparator = 0xA6545458;
-            cHighlight = 0xFF3A3A3C;
-            cBlue = 0xFF0A84FF;
-            cGreen = 0xFF30D158;
+            cSecondary = 0xFFA8A8A8;
+            cTertiary = 0x66FFFFFF;
+            cSeparator = 0x24FFFFFF;
+            cHighlight = 0xFF333333;
+            cBlue = 0xFF4C9BFF;
+            cBlueTint = 0x294C9BFF;
             cOrange = 0xFFFF9F0A;
-            cGray = 0xFF8E8E93;
-            cSwitchOff = 0xFF39393D;
+            cGray = 0xFF6F6F73;
+            cSwitchOff = 0xFF9A9A9A;
         } else {
-            cBg = 0xFFF2F2F7;
+            cBg = 0xFFF5F5F5;
             cCell = 0xFFFFFFFF;
             cLabel = 0xFF000000;
-            cSecondary = 0x993C3C43;
-            cTertiary = 0x4D3C3C43;
-            cSeparator = 0x4A3C3C43;
-            cHighlight = 0xFFD1D1D6;
-            cBlue = 0xFF007AFF;
-            cGreen = 0xFF34C759;
+            cSecondary = 0xFF6E6E6E;
+            cTertiary = 0x4D000000;
+            cSeparator = 0x1F000000;
+            cHighlight = 0xFFEAEAEA;
+            cBlue = 0xFF3E91FF;
+            cBlueTint = 0x1F3E91FF;
             cOrange = 0xFFFF9500;
-            cGray = 0xFF8E8E93;
-            cSwitchOff = 0xFFE9E9EA;
+            cGray = 0xFF9A9AA0;
+            cSwitchOff = 0xFF8E8E8E;
         }
     }
 
@@ -240,84 +253,73 @@ public class MainActivity extends Activity {
         scroll.addView(content, new FrameLayout.LayoutParams(MATCH, WRAP));
         root.addView(scroll, new FrameLayout.LayoutParams(MATCH, MATCH));
 
-        // Hero card
-        hero = card();
-        hero.setGravity(Gravity.CENTER_HORIZONTAL);
-        hero.setPadding(dp(24), dp(28), dp(24), dp(26));
-        ImageView icon = new ImageView(this);
-        GradientDrawable iconBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0xFFFFC94D, 0xFFFF8A00});
-        iconBg.setCornerRadius(dp(17));
-        icon.setBackground(iconBg);
-        icon.setImageResource(R.drawable.ic_tile);
-        icon.setImageTintList(ColorStateList.valueOf(Color.WHITE));
-        icon.setPadding(dp(12), dp(12), dp(12), dp(12));
-        hero.addView(icon, new LinearLayout.LayoutParams(dp(76), dp(76)));
-
-        heroTitle = text(getString(R.string.app_name), 24, cLabel, 700);
-        heroTitle.setGravity(Gravity.CENTER);
-        hero.addView(heroTitle, margins(MATCH, WRAP, 0, dp(14), 0, 0));
-
-        TextView desc = text(getString(R.string.hero_desc), 15, cSecondary, 400);
-        desc.setGravity(Gravity.CENTER);
-        desc.setLineSpacing(dp(2), 1f);
-        hero.addView(desc, margins(MATCH, WRAP, 0, dp(6), 0, 0));
+        // Everything shares one left edge: INSET from the card edge (title, icons, headers, footer)
+        hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setGravity(Gravity.BOTTOM);
+        hero.setMinimumHeight(dp(150));
+        hero.setPadding(dp(INSET), 0, dp(INSET), dp(24));
+        heroTitle = text(getString(R.string.tile_label), 32, cLabel, 500);
+        hero.addView(heroTitle, new LinearLayout.LayoutParams(MATCH, WRAP));
         content.addView(hero, new LinearLayout.LayoutParams(MATCH, WRAP));
 
-        // Setup section
-        content.addView(sectionHeader(R.string.section_setup));
-        LinearLayout setup = card();
-        permRow = row(R.drawable.ic_key, cGray, R.string.row_permission);
-        addValueAndChevron(permRow);
-        tappable(permRow.view, new Runnable() {
-            @Override
-            public void run() {
-                openPermission();
-            }
-        });
-        setup.addView(permRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
-        setup.addView(separator(dp(16 + 30 + 14)));
-        tileRow = row(R.drawable.ic_apps, cBlue, R.string.row_tile);
-        addValueAndChevron(tileRow);
-        tappable(tileRow.view, new Runnable() {
-            @Override
-            public void run() {
-                requestAddTile();
-            }
-        });
-        setup.addView(tileRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
-        content.addView(setup, new LinearLayout.LayoutParams(MATCH, WRAP));
-        content.addView(footer(R.string.footer_setup));
-
-        // Brightness section
-        content.addView(sectionHeader(R.string.section_control));
+        // Main card: the live switch
         LinearLayout control = card();
-        Row autoRow = row(R.drawable.ic_tile, cOrange, R.string.row_auto);
-        autoRow.view.setPadding(dp(16), 0, dp(12), 0);
-        autoSwitch = new IosSwitch(this, cGreen, cSwitchOff);
+        Row autoRow = row(R.drawable.ic_tile, cGray, R.string.row_auto);
+        autoBubble = autoRow.bubble;
+        autoStatus = autoRow.sub;
+        autoRow.view.setPadding(dp(INSET), dp(12), dp(10), dp(12));
+        autoSwitch = new OneUiSwitch(this, cBlue, cSwitchOff);
         autoSwitch.setContentDescription(getString(R.string.row_auto));
-        autoSwitch.setListener(new IosSwitch.Listener() {
+        autoSwitch.setListener(new OneUiSwitch.Listener() {
             @Override
-            public void onToggle(IosSwitch view, boolean checked) {
+            public void onToggle(OneUiSwitch view, boolean checked) {
                 onAutoToggled(checked);
             }
         });
         autoRow.view.addView(autoSwitch, new LinearLayout.LayoutParams(WRAP, WRAP));
         control.addView(autoRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
         content.addView(control, new LinearLayout.LayoutParams(MATCH, WRAP));
+
+        // Setup card: only the steps that are still left
+        setupHeader = sectionHeader(R.string.section_setup);
+        content.addView(setupHeader);
+        setupCard = card();
+        permRow = row(R.drawable.ic_key, cGray, R.string.row_permission);
+        addPill(permRow, R.string.allow);
+        tappable(permRow.view, new Runnable() {
+            @Override
+            public void run() {
+                openPermission();
+            }
+        });
+        setupCard.addView(permRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
+        setupDivider = separator(dp(INSET + ICON + GAP));
+        setupCard.addView(setupDivider);
+        tileRow = row(R.drawable.ic_apps, cBlue, R.string.row_tile);
+        addPill(tileRow, R.string.add);
+        tappable(tileRow.view, new Runnable() {
+            @Override
+            public void run() {
+                requestAddTile();
+            }
+        });
+        setupCard.addView(tileRow.view, new LinearLayout.LayoutParams(MATCH, WRAP));
+        content.addView(setupCard, new LinearLayout.LayoutParams(MATCH, WRAP));
+
         content.addView(footer(R.string.footer_control));
 
         TextView version = text(getString(R.string.version_line), 12, cTertiary, 400);
         version.setGravity(Gravity.CENTER);
-        content.addView(version, margins(MATCH, WRAP, 0, dp(32), 0, 0));
+        content.addView(version, margins(MATCH, WRAP, 0, dp(40), 0, 0));
 
-        // Translucent nav bar that fades in while scrolling (iOS large-title behaviour)
+        // Top bar: fades in while scrolling and shows the collapsed title
         nav = new FrameLayout(this);
         navBg = new View(this);
         navBg.setBackgroundColor((cBg & 0x00FFFFFF) | 0xF0000000);
         navBg.setAlpha(0f);
         nav.addView(navBg, new FrameLayout.LayoutParams(MATCH, MATCH));
-        navTitle = text(getString(R.string.app_name), 17, cLabel, 600);
+        navTitle = text(getString(R.string.tile_label), 17, cLabel, 600);
         navTitle.setGravity(Gravity.CENTER);
         navTitle.setSingleLine(true);
         navTitle.setAlpha(0f);
@@ -424,52 +426,60 @@ public class MainActivity extends Activity {
         c.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable g = new GradientDrawable();
         g.setColor(cCell);
-        g.setCornerRadius(dp(24));
+        g.setCornerRadius(dp(26));
         c.setBackground(g);
         c.setClipToOutline(true);
         return c;
     }
 
+    /** Round icon bubble, then a title with an optional status line underneath. */
     private Row row(int glyph, int tint, int title) {
         Row r = new Row();
         LinearLayout v = new LinearLayout(this);
         v.setOrientation(LinearLayout.HORIZONTAL);
         v.setGravity(Gravity.CENTER_VERTICAL);
-        v.setMinimumHeight(dp(52));
-        v.setPadding(dp(16), 0, dp(16), 0);
+        v.setMinimumHeight(dp(68));
+        v.setPadding(dp(INSET), dp(10), dp(INSET), dp(10));
 
         ImageView icon = new ImageView(this);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(tint);
-        bg.setCornerRadius(dp(7));
-        icon.setBackground(bg);
+        r.bubble = new GradientDrawable();
+        r.bubble.setShape(GradientDrawable.OVAL);
+        r.bubble.setColor(tint);
+        icon.setBackground(r.bubble);
         icon.setImageResource(glyph);
         icon.setImageTintList(ColorStateList.valueOf(Color.WHITE));
-        icon.setPadding(dp(5), dp(5), dp(5), dp(5));
-        v.addView(icon, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        icon.setPadding(dp(9), dp(9), dp(9), dp(9));
+        v.addView(icon, new LinearLayout.LayoutParams(dp(ICON), dp(ICON)));
 
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
         TextView t = text(getString(title), 17, cLabel, 400);
         t.setSingleLine(true);
         t.setEllipsize(TextUtils.TruncateAt.END);
+        labels.addView(t, new LinearLayout.LayoutParams(MATCH, WRAP));
+        r.sub = text("", 14, cSecondary, 400);
+        labels.addView(r.sub, margins(MATCH, WRAP, 0, dp(3), 0, 0));
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, WRAP, 1f);
-        tl.leftMargin = dp(14);
+        tl.leftMargin = dp(GAP);
         tl.rightMargin = dp(8);
-        v.addView(t, tl);
+        v.addView(labels, tl);
 
         r.view = v;
         return r;
     }
 
-    private void addValueAndChevron(Row r) {
-        r.value = text("", 17, cSecondary, 400);
-        r.value.setSingleLine(true);
-        r.view.addView(r.value, new LinearLayout.LayoutParams(WRAP, WRAP));
-        ImageView chevron = new ImageView(this);
-        chevron.setImageResource(R.drawable.ic_chevron);
-        chevron.setImageTintList(ColorStateList.valueOf(cTertiary));
-        LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(dp(8), dp(14));
-        cl.leftMargin = dp(10);
-        r.view.addView(chevron, cl);
+    /** Tonal blue action pill at the end of a setup row; the row has no status line. */
+    private void addPill(Row r, int label) {
+        r.sub.setVisibility(View.GONE);
+        TextView pill = text(getString(label), 15, cBlue, 500);
+        pill.setSingleLine(true);
+        pill.setGravity(Gravity.CENTER);
+        pill.setPadding(dp(16), 0, dp(16), 0);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(18));
+        bg.setColor(cBlueTint);
+        pill.setBackground(bg);
+        r.view.addView(pill, new LinearLayout.LayoutParams(WRAP, dp(36)));
     }
 
     private void tappable(View v, final Runnable action) {
@@ -497,16 +507,15 @@ public class MainActivity extends Activity {
     }
 
     private TextView sectionHeader(int res) {
-        TextView t = text(getString(res).toUpperCase(Locale.ROOT), 13, cSecondary, 400);
-        t.setLetterSpacing(0.03f);
-        t.setLayoutParams(margins(MATCH, WRAP, dp(16), dp(28), dp(16), dp(8)));
+        TextView t = text(getString(res), 14, cBlue, 500);
+        t.setLayoutParams(margins(MATCH, WRAP, dp(INSET), dp(28), dp(INSET), dp(10)));
         return t;
     }
 
     private TextView footer(int res) {
         TextView t = text(getString(res), 13, cSecondary, 400);
         t.setLineSpacing(dp(2), 1f);
-        t.setLayoutParams(margins(MATCH, WRAP, dp(16), dp(8), dp(16), 0));
+        t.setLayoutParams(margins(MATCH, WRAP, dp(INSET), dp(16), dp(INSET), 0));
         return t;
     }
 
